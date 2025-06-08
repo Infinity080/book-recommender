@@ -1,11 +1,20 @@
+import os
 import pandas as pd
+import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sentence_transformers import SentenceTransformer
 import torch
 
+
 class BookRecommender:
-    def __init__(self, books_path, book_tags_path, tags_path):
+    def __init__(self, books_path, book_tags_path, tags_path,
+                 embeddings_path="book_embeddings.npy",
+                 features_path="book_features.npy",
+                 cache=True):
+        self.embeddings_path = embeddings_path
+        self.features_path = features_path
+        self.cache = cache
+
         self.books = pd.read_csv(books_path)
         self.book_tags = pd.read_csv(book_tags_path)
         self.tags = pd.read_csv(tags_path)
@@ -13,7 +22,8 @@ class BookRecommender:
 
     def _prepare_data(self):
         tag_dict = {i: j for i, j in zip(self.tags.tag_id, self.tags.tag_name)}
-        mapped_tags = [tag_dict.get(tag_id, '') for tag_id in self.book_tags.tag_id]
+        mapped_tags = [tag_dict.get(tag_id, '')
+                       for tag_id in self.book_tags.tag_id]
         self.book_tags['tag'] = mapped_tags
 
         tag_lists = {}
@@ -25,7 +35,8 @@ class BookRecommender:
             'tag': [' '.join(tag_lists[bid]) for bid in tag_lists]
         })
 
-        self.books = self.books.merge(tag_data, left_on='book_id', right_on='goodreads_book_id', how='left')
+        self.books = self.books.merge(
+            tag_data, left_on='book_id', right_on='goodreads_book_id', how='left')
         self.books['tag'] = self.books['tag'].fillna('')
         self.books['features'] = (
             self.books['tag'].fillna('') + ' ' +
@@ -33,19 +44,32 @@ class BookRecommender:
             self.books['authors'].fillna('')
         )
 
+        if self.cache and os.path.exists(self.features_path):
+            self.books['features'] = np.load(
+                self.features_path, allow_pickle=True)
+        elif self.cache:
+            np.save(self.features_path, self.books['features'].values)
+
         self._vectorize()
 
     def _vectorize(self):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
-        self.embeddings = self.model.encode(
-            self.books["features"].fillna("").tolist(),
-            show_progress_bar=True
-        )
+
+        if self.cache and os.path.exists(self.embeddings_path):
+            self.embeddings = np.load(self.embeddings_path)
+        else:
+            self.embeddings = self.model.encode(
+                self.books["features"].tolist(),
+                show_progress_bar=True
+            )
+            if self.cache:
+                np.save(self.embeddings_path, self.embeddings)
 
     def recommend_from_text(self, query, n=5):
         query_embedding = self.model.encode([query])
-        sim_scores = cosine_similarity(query_embedding, self.embeddings).flatten()
+        sim_scores = cosine_similarity(
+            query_embedding, self.embeddings).flatten()
         top_indices = sim_scores.argsort()[::-1]
         results = []
         seen = set()
@@ -68,7 +92,7 @@ class BookRecommender:
         query_vec = self.embeddings[idx].reshape(1, -1)
         sim_scores = cosine_similarity(query_vec, self.embeddings).flatten()
         top_indices = sim_scores.argsort()[::-1]
-        
+
         seen = {title.lower()}
         for i in top_indices:
             candidate = self.books.iloc[i]['title']
@@ -83,7 +107,8 @@ class BookRecommender:
         found_titles = []
 
         for title, weight in liked_books.items():
-            matches = self.books[self.books['title'].str.lower() == title.lower()]
+            matches = self.books[self.books['title'].str.lower()
+                                 == title.lower()]
             if matches.empty:
                 continue
             idx = matches.index[0]
