@@ -1,7 +1,8 @@
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
 import ast
+import torch
 
 class MovieRecommender:
     def __init__(self, movie_path):
@@ -18,7 +19,6 @@ class MovieRecommender:
                 genres_text.append(' '.join([d['name'] for d in genres]))
             except:
                 genres_text.append('')
-
             try:
                 keywords = ast.literal_eval(self.movies.at[i, 'keywords'])
                 keywords_text.append(' '.join([d['name'] for d in keywords]))
@@ -28,33 +28,57 @@ class MovieRecommender:
         self.movies['genres_text'] = genres_text
         self.movies['keywords_text'] = keywords_text
 
-        features = []
-        for i in range(len(self.movies)):
-            genre = self.movies.at[i, 'genres_text']
-            keyword = self.movies.at[i, 'keywords_text']
-            tag = self.movies.at[i, 'tagline']
-            overview = self.movies.at[i, 'overview']
-            features.append(f"{genre} {keyword} {tag} {overview}")
-
-        self.movies['features'] = features
+        self.movies['features'] = (
+            self.movies['genres_text'].fillna('') + ' ' +
+            self.movies['keywords_text'].fillna('') + ' ' +
+            self.movies['tagline'].fillna('') + ' ' +
+            self.movies['overview'].fillna('')
+        )
 
         self._vectorize()
 
     def _vectorize(self):
-        tfidf = TfidfVectorizer(stop_words='english')
-        self.tfidf_matrix = tfidf.fit_transform(self.movies['features'])
-        self.similarity = cosine_similarity(self.tfidf_matrix)
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+        self.embeddings = self.model.encode(
+            self.movies["features"].fillna("").tolist(),
+            show_progress_bar=True
+        )
+
+    def recommend_from_description(self, query, n=5):
+        query_embedding = self.model.encode([query])
+        sim_scores = cosine_similarity(query_embedding, self.embeddings).flatten()
+        top_indices = sim_scores.argsort()[::-1]
+        results = []
+        seen = set()
+        for i in top_indices:
+            title = self.movies.iloc[i]['title']
+            if title.lower() not in seen:
+                results.append(self.movies.iloc[i])
+                seen.add(title.lower())
+            if len(results) >= n:
+                break
+        return results
 
     def recommend(self, title, n=5):
         matches = self.movies[self.movies['title'].str.lower() == title.lower()]
         if matches.empty:
+            print("No match found.")
             return
 
         idx = matches.index[0]
-        sim_scores = list(enumerate(self.similarity[idx]))
-        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[1:n+1]
-        for i, _ in sim_scores:
-            print(self.movies.iloc[i]['title'])
+        query_vec = self.embeddings[idx].reshape(1, -1)
+        sim_scores = cosine_similarity(query_vec, self.embeddings).flatten()
+        top_indices = sim_scores.argsort()[::-1]
+
+        seen = {title.lower()}
+        for i in top_indices:
+            candidate = self.movies.iloc[i]['title']
+            if candidate.lower() not in seen:
+                print("-", candidate)
+                seen.add(candidate.lower())
+            if len(seen) - 1 >= n:
+                break
 
     def recommend_multiple(self, liked_movies: dict, n=5):
         sim_vector = None
@@ -65,21 +89,20 @@ class MovieRecommender:
             if matches.empty:
                 continue
             idx = matches.index[0]
-            vec = self.similarity[idx] * weight
+            vec = self.embeddings[idx] * weight
             sim_vector = vec if sim_vector is None else sim_vector + vec
-            found_titles.append(title)
+            found_titles.append(title.lower())
 
         if sim_vector is None:
             print("No movies found.")
             return
 
-        sim_scores = list(enumerate(sim_vector))
-        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-
-        seen = set([b.lower() for b in liked_movies.keys()])
+        sim_scores = cosine_similarity([sim_vector], self.embeddings).flatten()
+        top_indices = sim_scores.argsort()[::-1]
+        seen = set(found_titles)
         recommendations = []
 
-        for i, _ in sim_scores:
+        for i in top_indices:
             candidate = self.movies.iloc[i]['title']
             if candidate.lower() not in seen:
                 recommendations.append(candidate)
