@@ -3,10 +3,21 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 import ast
 import torch
+import os
+import numpy as np
+
 
 class MovieRecommender:
-    def __init__(self, movie_path):
+    def __init__(self, movie_path, embeddings_path="movie_embeddings.npy", features_path="movie_features.npy", cache=True):
+        self.movie_path = movie_path
+        self.embeddings_path = embeddings_path
+        self.features_path = features_path
+        self.cache = cache
         self.movies = pd.read_csv(movie_path)
+
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+
         self._prepare_data()
 
     def _prepare_data(self):
@@ -28,26 +39,44 @@ class MovieRecommender:
         self.movies['genres_text'] = genres_text
         self.movies['keywords_text'] = keywords_text
 
-        self.movies['features'] = (
-            self.movies['genres_text'].fillna('') + ' ' +
-            self.movies['keywords_text'].fillna('') + ' ' +
-            self.movies['tagline'].fillna('') + ' ' +
-            self.movies['overview'].fillna('')
-        )
+        if self.cache and os.path.exists(self.features_path):
+            self.features = np.load(self.features_path, allow_pickle=True)
+            self.movies['features'] = self.features
+        else:
+            self.features = (
+                self.movies['genres_text'].fillna('') + ' ' +
+                self.movies['keywords_text'].fillna('') + ' ' +
+                self.movies['tagline'].fillna('') + ' ' +
+                self.movies['overview'].fillna('')
+            )
+            self.movies['features'] = self.features
+            if self.cache:
+                np.save(self.features_path, self.features.to_numpy())
 
-        self._vectorize()
+        if self.cache and os.path.exists(self.embeddings_path):
+            self.embeddings = np.load(self.embeddings_path)
+        else:
+            self._vectorize()
+            if self.cache:
+                np.save(self.embeddings_path, self.embeddings)
 
     def _vectorize(self):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
-        self.embeddings = self.model.encode(
-            self.movies["features"].fillna("").tolist(),
-            show_progress_bar=True
-        )
+
+        if os.path.exists(self.embeddings_path):
+            self.embeddings = np.load(self.embeddings_path)
+        else:
+            self.embeddings = self.model.encode(
+                self.features.tolist(),
+                show_progress_bar=True
+            )
+            np.save(self.embeddings_path, self.embeddings)
 
     def recommend_from_description(self, query, n=5):
         query_embedding = self.model.encode([query])
-        sim_scores = cosine_similarity(query_embedding, self.embeddings).flatten()
+        sim_scores = cosine_similarity(
+            query_embedding, self.embeddings).flatten()
         top_indices = sim_scores.argsort()[::-1]
         results = []
         seen = set()
@@ -61,7 +90,8 @@ class MovieRecommender:
         return results
 
     def recommend(self, title, n=5):
-        matches = self.movies[self.movies['title'].str.lower() == title.lower()]
+        matches = self.movies[self.movies['title'].str.lower()
+                              == title.lower()]
         if matches.empty:
             print("No match found.")
             return
@@ -85,7 +115,8 @@ class MovieRecommender:
         found_titles = []
 
         for title, weight in liked_movies.items():
-            matches = self.movies[self.movies['title'].str.lower() == title.lower()]
+            matches = self.movies[self.movies['title'].str.lower()
+                                  == title.lower()]
             if matches.empty:
                 continue
             idx = matches.index[0]
