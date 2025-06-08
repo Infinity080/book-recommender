@@ -1,13 +1,13 @@
-# Book Recommender
+# Book/Movie Recommender
 
-A simple content-based book recommendation system built with Python and Streamlit.
+A simple content-based book/movie recommendation system built with Python and Streamlit.
 
 ## Features
 
-- Recommend books based on up to 3 favorite titles
-- Uses tag similarity (TF-IDF + cosine similarity)
+- Recommend titles based on up to 3 favorite titles
+- Recommend titles based on natural language input from user
 - Fuzzy matching with optional confirmation
-- Shows author names and cover images
+- Uses `all-MiniLM-L6-v2` for embedding and semantic analysis 
 - Built with Streamlit for a clean and simple GUI
 
 ## Run
