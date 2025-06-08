@@ -1,3 +1,8 @@
+import sys
+import types
+import torch
+if isinstance(torch.classes, types.ModuleType):
+    sys.modules["torch.classes"] = types.SimpleNamespace()
 import streamlit as st
 from BookRecommender import BookRecommender
 from MovieRecommender import MovieRecommender
@@ -10,11 +15,17 @@ from sklearn.metrics.pairwise import cosine_similarity
 st.set_page_config(page_title="Recommender", layout="centered")
 st.markdown("## Select media type")
 col1, col2, _ , _ = st.columns(4)
-mode = None
+
+if "mode" not in st.session_state:
+    st.session_state.mode = None
+
+col1, col2, _, _ = st.columns(4)
 if col1.button("Books"):
-    mode = "Books" 
+    st.session_state.mode = "Books"
 if col2.button("Movies"):
-    mode = "Movies"
+    st.session_state.mode = "Movies"
+
+mode = st.session_state.mode
 
 
 if mode == "Books":
@@ -44,7 +55,7 @@ if mode == "Books":
             all_titles_lower = [t.lower() for t in all_titles]
             match = process.extractOne(title.lower(), all_titles_lower, scorer=fuzz.ratio, score_cutoff=70)
 
-            if match is None:
+            if match is None: 
                 st.warning(f"Book {i} not found: \"{title}\"")
             else:
                 matched_title, score, _ = match
