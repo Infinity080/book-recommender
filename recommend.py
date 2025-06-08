@@ -44,3 +44,38 @@ class BookRecommender:
         sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[1:n+1]
         for i, _ in sim_scores:
             print(self.books.iloc[i]['title'])
+
+    def recommend_multiple(self, liked_books: dict, n=5):
+        sim_vector = None
+        found_titles = []
+
+        for title, weight in liked_books.items():
+            matches = self.books[self.books['title'].str.lower() == title.lower()]
+            if matches.empty:
+                continue
+            idx = matches.index[0]
+            vec = self.similarity[idx] * weight
+            sim_vector = vec if sim_vector is None else sim_vector + vec
+            found_titles.append(title)
+
+        if sim_vector is None:
+            print("No books found.")
+            return
+
+        sim_scores = list(enumerate(sim_vector))
+        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+
+        seen = set([b.lower() for b in liked_books.keys()])
+        recommendations = []
+
+        for i, _ in sim_scores:
+            candidate = self.books.iloc[i]['title']
+            if candidate.lower() not in seen:
+                recommendations.append(candidate)
+            if len(recommendations) >= n:
+                break
+
+        print("Similar books:", ", ".join(found_titles))
+        for title in recommendations:
+            print("-", title)
+
