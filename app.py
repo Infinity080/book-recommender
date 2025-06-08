@@ -8,11 +8,18 @@ from rapidfuzz import process, fuzz
 from sklearn.metrics.pairwise import cosine_similarity
 
 st.set_page_config(page_title="Recommender", layout="centered")
-mode = st.radio("Select media type:", ["Books", "Movies"])
+st.markdown("## Select media type")
+col1, col2, _ , _ = st.columns(4)
+mode = None
+if col1.button("Books"):
+    mode = "Books" 
+if col2.button("Movies"):
+    mode = "Movies"
+
 
 if mode == "Books":
     st.title("Book Recommender")
-    st.write("Enter up to 3 books you like and rate them, or use a description instead.")
+    st.write("Enter up to 3 books you like and rate them")
 
     data_dir = kagglehub.dataset_download("zygmunt/goodbooks-10k")
 
