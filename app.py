@@ -3,6 +3,7 @@ from recommend import BookRecommender
 import kagglehub
 import os
 import pandas as pd
+from rapidfuzz import process, fuzz
 
 st.set_page_config(page_title="Book Recommender", layout="centered")
 
@@ -27,13 +28,22 @@ for i in range(1, 4):
     with col2:
         rating = st.slider("Rating", 1, 5, 5, key=f"rating_{i}", label_visibility="collapsed") - 3
     if title:
-        matches = recommender.books[recommender.books['title'].str.lower() == title.lower()]
-        if matches.empty:
+        all_titles = recommender.books['title'].tolist()
+        all_titles_lower = [t.lower() for t in all_titles]
+        match = process.extractOne(title.lower(), all_titles_lower, scorer=fuzz.ratio, score_cutoff=70)
+
+        if match is None:
             st.warning(f"Book {i} not found: \"{title}\"")
         else:
-            matched_title = matches.iloc[0]['title']
-            st.success(f"Book {i} matched: \"{matched_title}\"")
-            liked_books[matched_title] = rating
+            matched_title, score, _ = match
+            if score >= 90:
+                st.success(f"Book {i} matched: \"{matched_title}\" (score: {score:.1f})")
+                liked_books[matched_title] = rating
+            else:
+                st.warning(f"Book {i}: \"{matched_title}\" (similarity: {score:.1f}%)")
+                confirm = st.checkbox(f"Did you mean {matched_title}?", key=f"confirm_{matched_title}")
+                if confirm:
+                    liked_books[matched_title] = rating
 
 st.divider()
 
