@@ -53,7 +53,7 @@ class BookRecommender:
         self._vectorize()
 
     def _vectorize(self):
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = 'cpu'
         self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
 
         if self.cache and os.path.exists(self.embeddings_path):

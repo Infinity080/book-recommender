@@ -61,7 +61,7 @@ class MovieRecommender:
                 np.save(self.embeddings_path, self.embeddings)
 
     def _vectorize(self):
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = 'cpu'
         self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
 
         if os.path.exists(self.embeddings_path):
