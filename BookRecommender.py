@@ -1,6 +1,8 @@
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sentence_transformers import SentenceTransformer
+import torch
 
 class BookRecommender:
     def __init__(self, books_path, book_tags_path, tags_path):
@@ -10,40 +12,71 @@ class BookRecommender:
         self._prepare_data()
 
     def _prepare_data(self):
-        tag_dict = {}
-        for i,j in zip(self.tags.tag_id, self.tags.tag_name):
-            tag_dict[i] = j
-
+        tag_dict = {i: j for i, j in zip(self.tags.tag_id, self.tags.tag_name)}
         mapped_tags = [tag_dict.get(tag_id, '') for tag_id in self.book_tags.tag_id]
         self.book_tags['tag'] = mapped_tags
 
         tag_lists = {}
-        for book_id, group in zip(self.book_tags.goodreads_book_id, self.book_tags.tag):
-            tag_lists.setdefault(book_id, []).append(group)
+        for book_id, tag in zip(self.book_tags.goodreads_book_id, self.book_tags.tag):
+            tag_lists.setdefault(book_id, []).append(tag)
 
-        goodreads_ids = list(tag_lists.keys())
-        tag_data = pd.DataFrame({'goodreads_book_id': goodreads_ids, 'tag': [' '.join(tag_lists[book_id]) for book_id in goodreads_ids]})
+        tag_data = pd.DataFrame({
+            'goodreads_book_id': list(tag_lists.keys()),
+            'tag': [' '.join(tag_lists[bid]) for bid in tag_lists]
+        })
 
         self.books = self.books.merge(tag_data, left_on='book_id', right_on='goodreads_book_id', how='left')
         self.books['tag'] = self.books['tag'].fillna('')
+        self.books['features'] = (
+            self.books['tag'].fillna('') + ' ' +
+            self.books['title'].fillna('') + ' ' +
+            self.books['authors'].fillna('')
+        )
 
         self._vectorize()
 
     def _vectorize(self):
-        tfidf = TfidfVectorizer(stop_words='english')
-        self.tfidf_matrix = tfidf.fit_transform(self.books['tag'])
-        self.similarity = cosine_similarity(self.tfidf_matrix)
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+        self.embeddings = self.model.encode(
+            self.books["features"].fillna("").tolist(),
+            show_progress_bar=True
+        )
+
+    def recommend_from_text(self, query, n=5):
+        query_embedding = self.model.encode([query])
+        sim_scores = cosine_similarity(query_embedding, self.embeddings).flatten()
+        top_indices = sim_scores.argsort()[::-1]
+        results = []
+        seen = set()
+        for i in top_indices:
+            title = self.books.iloc[i]['title']
+            if title.lower() not in seen:
+                results.append(self.books.iloc[i])
+                seen.add(title.lower())
+            if len(results) >= n:
+                break
+        return results
 
     def recommend(self, title, n=5):
         matches = self.books[self.books['title'].str.lower() == title.lower()]
         if matches.empty:
+            print("No match found.")
             return
-            
+
         idx = matches.index[0]
-        sim_scores = list(enumerate(self.similarity[idx]))
-        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[1:n+1]
-        for i, _ in sim_scores:
-            print(self.books.iloc[i]['title'])
+        query_vec = self.embeddings[idx].reshape(1, -1)
+        sim_scores = cosine_similarity(query_vec, self.embeddings).flatten()
+        top_indices = sim_scores.argsort()[::-1]
+        
+        seen = {title.lower()}
+        for i in top_indices:
+            candidate = self.books.iloc[i]['title']
+            if candidate.lower() not in seen:
+                print("-", candidate)
+                seen.add(candidate.lower())
+            if len(seen) - 1 >= n:
+                break
 
     def recommend_multiple(self, liked_books: dict, n=5):
         sim_vector = None
@@ -54,21 +87,20 @@ class BookRecommender:
             if matches.empty:
                 continue
             idx = matches.index[0]
-            vec = self.similarity[idx] * weight
+            vec = self.embeddings[idx] * weight
             sim_vector = vec if sim_vector is None else sim_vector + vec
-            found_titles.append(title)
+            found_titles.append(title.lower())
 
         if sim_vector is None:
             print("No books found.")
             return
 
-        sim_scores = list(enumerate(sim_vector))
-        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-
-        seen = set([b.lower() for b in liked_books.keys()])
+        sim_scores = cosine_similarity([sim_vector], self.embeddings).flatten()
+        top_indices = sim_scores.argsort()[::-1]
+        seen = set(found_titles)
         recommendations = []
 
-        for i, _ in sim_scores:
+        for i in top_indices:
             candidate = self.books.iloc[i]['title']
             if candidate.lower() not in seen:
                 recommendations.append(candidate)
@@ -78,4 +110,3 @@ class BookRecommender:
         print("Similar books:", ", ".join(found_titles))
         for title in recommendations:
             print("-", title)
-

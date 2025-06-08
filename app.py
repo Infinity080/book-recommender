@@ -5,13 +5,14 @@ import kagglehub
 import os
 import pandas as pd
 from rapidfuzz import process, fuzz
+from sklearn.metrics.pairwise import cosine_similarity
 
 st.set_page_config(page_title="Recommender", layout="centered")
 mode = st.radio("Select media type:", ["Books", "Movies"])
 
 if mode == "Books":
     st.title("Book Recommender")
-    st.write("Enter up to 3 books you like and rate them.")
+    st.write("Enter up to 3 books you like and rate them, or use a description instead.")
 
     data_dir = kagglehub.dataset_download("zygmunt/goodbooks-10k")
 
@@ -22,6 +23,7 @@ if mode == "Books":
     )
 
     liked_books = {}
+    st.subheader("Rate Books You Liked")
 
     st.divider()
     for i in range(1, 4):
@@ -45,13 +47,18 @@ if mode == "Books":
                 else:
                     st.warning(f"Book {i}: \"{matched_title}\" (similarity: {score:.1f}%)")
                     confirm = st.checkbox(f"Did you mean {matched_title}?", key=f"confirm_movie_{matched_title}_{i}")
-
                     if confirm:
                         liked_books[matched_title] = rating
 
     st.divider()
+    query = st.text_area("Or describe what you like (optional)", placeholder="book description")
 
-    if st.button("Get Recommendations"):
+    button_col1, button_col2 = st.columns(2)
+
+    show_liked_recommendations = button_col1.button("Get Recommendations from Books")
+    show_text_recommendations = button_col2.button("Get Recommendations from Description")
+
+    if show_liked_recommendations:
         if not liked_books:
             st.warning("Enter at least one book.")
         else:
@@ -62,21 +69,21 @@ if mode == "Books":
                 if matches.empty:
                     continue
                 idx = matches.index[0]
-                vec = recommender.similarity[idx] * weight
+                vec = recommender.embeddings[idx] * weight
                 sim_vector = vec if sim_vector is None else sim_vector + vec
                 seen.add(title.lower())
 
             if sim_vector is None:
                 st.warning("Books not found.")
             else:
-                scores = sorted(enumerate(sim_vector), key=lambda x: x[1], reverse=True)
+                scores = cosine_similarity([sim_vector], recommender.embeddings).flatten()
+                top_indices = scores.argsort()[::-1]
                 st.subheader("Recommended Books")
                 count = 0
-                for i, _ in scores:
+                for i in top_indices:
                     book = recommender.books.iloc[i]
                     if book['title'].lower() in seen:
                         continue
-
                     col1, col2 = st.columns([1, 4])
                     with col1:
                         if pd.notna(book.get('image_url', '')) and book['image_url'].startswith('http'):
@@ -87,14 +94,32 @@ if mode == "Books":
                     count += 1
                     if count == 5:
                         break
+
+    if show_text_recommendations:
+        if not query.strip():
+            st.warning("Please enter a description.")
+        else:
+            results = recommender.recommend_from_text(query)
+            st.subheader("Recommended Books")
+            for book in results:
+                col1, col2 = st.columns([1, 4])
+                with col1:
+                    if pd.notna(book.get('image_url', '')) and book['image_url'].startswith('http'):
+                        st.image(book['image_url'], width=100)
+                with col2:
+                    st.markdown(f"**{book['title']}**")
+                    st.markdown(f"*{book['authors']}*")
+
+
 elif mode == "Movies":
     st.title("Movie Recommender")
-    st.write("Enter up to 3 movies you like and rate them.")
+    st.write("Enter up to 3 movies you like and rate them, or use a description instead.")
 
     data_dir = kagglehub.dataset_download("tmdb/tmdb-movie-metadata")
     movie_recommender = MovieRecommender(os.path.join(data_dir, "tmdb_5000_movies.csv"))
 
     liked_movies = {}
+    st.subheader("Rate Movies You Liked")
 
     st.divider()
     for i in range(1, 4):
@@ -123,8 +148,13 @@ elif mode == "Movies":
                         liked_movies[matched_title] = rating
 
     st.divider()
+    query = st.text_area("Or describe what you like (optional)", placeholder="movie description")
 
-    if st.button("Get Movie Recommendations"):
+    col1, col2 = st.columns(2)
+    show_liked_recommendations = col1.button("Get Recommendations from Movies")
+    show_text_recommendations = col2.button("Get Recommendations from Description")
+
+    if show_liked_recommendations:
         if not liked_movies:
             st.warning("Enter at least one movie.")
         else:
@@ -135,23 +165,33 @@ elif mode == "Movies":
                 if matches.empty:
                     continue
                 idx = matches.index[0]
-                vec = movie_recommender.similarity[idx] * weight
+                vec = movie_recommender.embeddings[idx] * weight
                 sim_vector = vec if sim_vector is None else sim_vector + vec
                 seen.add(title.lower())
 
             if sim_vector is None:
                 st.warning("Movies not found.")
             else:
-                scores = sorted(enumerate(sim_vector), key=lambda x: x[1], reverse=True)
+                scores = cosine_similarity([sim_vector], movie_recommender.embeddings).flatten()
+                top_indices = scores.argsort()[::-1]
                 st.subheader("Recommended Movies")
                 count = 0
-                for i, _ in scores:
+                for i in top_indices:
                     movie = movie_recommender.movies.iloc[i]
                     if movie['title'].lower() in seen:
                         continue
-
                     st.markdown(f"**{movie['title']}**  \n*{movie.get('release_date', 'Unknown')}*")
                     st.markdown(movie.get('overview', ''))
                     count += 1
                     if count == 5:
                         break
+
+    if show_text_recommendations:
+        if not query.strip():
+            st.warning("Please enter a description.")
+        else:
+            results = movie_recommender.recommend_from_description(query)
+            st.subheader("Recommended Movies")
+            for movie in results:
+                st.markdown(f"**{movie['title']}**  \n*{movie.get('release_date', 'Unknown')}*")
+                st.markdown(movie.get('overview', ''))
