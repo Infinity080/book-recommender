@@ -21,8 +21,8 @@ This project is a **Book/Movie Recommendation System** that gives suggestions ba
     <td align="center"><h3>Movie Recommendations from Description</h3></td>
   </tr>
   <tr>
-    <td><img src="assets/books.gif" width="600"/></td>
-    <td><img src="assets/movies.gif" width="600"/></td>
+    <td align="center"><img src="assets/books.gif" width=80%/></td>
+    <td align="center"><img src="assets/movies.gif" width=80%/></td>
   </tr>
 </table>
 
