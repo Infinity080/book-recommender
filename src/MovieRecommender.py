@@ -64,6 +64,10 @@ class MovieRecommender:
         device = 'cpu'
         model_dir = "models/all-MiniLM-L6-v2"
 
+        os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+        os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+        os.environ["SENTENCE_TRANSFORMERS_HOME"] = os.getcwd()
+
         if os.path.exists(model_dir):
             self.model = SentenceTransformer(model_dir, device=device)
         else:
