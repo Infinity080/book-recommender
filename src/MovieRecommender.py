@@ -62,7 +62,13 @@ class MovieRecommender:
 
     def _vectorize(self):
         device = 'cpu'
-        self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+        model_dir = "models/all-MiniLM-L6-v2"
+
+        if os.path.exists(model_dir):
+            self.model = SentenceTransformer(model_dir, device=device)
+        else:
+            self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+            self.model.save(model_dir)
 
         if os.path.exists(self.embeddings_path):
             self.embeddings = np.load(self.embeddings_path)
@@ -72,7 +78,7 @@ class MovieRecommender:
                 show_progress_bar=True
             )
             np.save(self.embeddings_path, self.embeddings)
-
+    
     def recommend_from_description(self, query, n=5):
         query_embedding = self.model.encode([query])
         sim_scores = cosine_similarity(
