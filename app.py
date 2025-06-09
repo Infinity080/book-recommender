@@ -41,7 +41,7 @@ mode = st.session_state.mode
 
 if mode == "Books":
     st.title("Book Recommender")
-    st.write("Enter up to 3 books you like and rate them")
+    st.write("Get recommendations based on your previously read books or based on a description you provide.")
 
     data_dir = kagglehub.dataset_download("zygmunt/goodbooks-10k")
 
@@ -52,7 +52,7 @@ if mode == "Books":
     )
 
     liked_books = {}
-    st.subheader("Rate Books You Liked")
+    st.subheader("Rate Books You Read")
 
     st.divider()
     for i in range(1, 4):
@@ -63,6 +63,7 @@ if mode == "Books":
         with col2:
             rating = st.slider(
                 "Rating", 1, 5, 5, key=f"rating_{i}", label_visibility="collapsed") - 3
+
         if title:
             all_titles = recommender.books['title'].tolist()
             all_titles_lower = [t.lower() for t in all_titles]
@@ -72,16 +73,23 @@ if mode == "Books":
             if match is None:
                 st.warning(f"Book {i} not found: \"{title}\"")
             else:
-                matched_title, score, _ = match
-                if score >= 90:
+                matched_lower = match[0]
+                matched_row = recommender.books[recommender.books['title'].str.lower(
+                ) == matched_lower].iloc[0]
+                matched_title = matched_row['title']
+                author = matched_row.get('authors', 'Unknown author')
+
+                if match[1] >= 90:
                     st.success(
-                        f"Book {i} matched: \"{matched_title}\" (score: {score:.1f})")
+                        f"Book {i} found: \"{matched_title}\" by {author}")
                     liked_books[matched_title] = rating
                 else:
                     st.warning(
-                        f"Book {i}: \"{matched_title}\" (similarity: {score:.1f}%)")
+                        f"Book {i}: \"{matched_title}\" (similarity: {match[1]:.1f}%)")
                     confirm = st.checkbox(
-                        f"Did you mean {matched_title}?", key=f"confirm_movie_{matched_title}_{i}")
+                        f"Did you mean \"{matched_title}\" by {author}?",
+                        key=f"confirm_book_{i}"
+                    )
                     if confirm:
                         liked_books[matched_title] = rating
 
@@ -154,14 +162,14 @@ if mode == "Books":
 elif mode == "Movies":
     st.title("Movie Recommender")
     st.write(
-        "Enter up to 3 movies you like and rate them, or use a description instead.")
+        "Get recommendations based on your previously watched movies or based on a description you provide.")
 
     data_dir = kagglehub.dataset_download("tmdb/tmdb-movie-metadata")
     movie_recommender = MovieRecommender(
         os.path.join(data_dir, "tmdb_5000_movies.csv"))
 
     liked_movies = {}
-    st.subheader("Rate Movies You Liked")
+    st.subheader("Rate Movies You Watched")
 
     st.divider()
     for i in range(1, 4):
