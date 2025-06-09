@@ -12,9 +12,20 @@ import pandas as pd
 from rapidfuzz import process, fuzz
 from sklearn.metrics.pairwise import cosine_similarity
 
-st.set_page_config(page_title="Recommender", layout="centered")
-st.markdown("## Select media type")
-col1, col2, _ , _ = st.columns(4)
+st.set_page_config(page_title="Media Recommender", layout="centered")
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 2rem;
+        }
+        .stButton > button {
+            width: 100%;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown("# Media Recommender")
+st.markdown("### Choose media type")
 
 if "mode" not in st.session_state:
     st.session_state.mode = None
@@ -47,34 +58,43 @@ if mode == "Books":
     for i in range(1, 4):
         col1, col2 = st.columns([3, 1])
         with col1:
-            title = st.text_input(f"Book {i}", key=f"title_{i}", placeholder="book title")
+            title = st.text_input(
+                f"Book {i}", key=f"title_{i}", placeholder="book title")
         with col2:
-            rating = st.slider("Rating", 1, 5, 5, key=f"rating_{i}", label_visibility="collapsed") - 3
+            rating = st.slider(
+                "Rating", 1, 5, 5, key=f"rating_{i}", label_visibility="collapsed") - 3
         if title:
             all_titles = recommender.books['title'].tolist()
             all_titles_lower = [t.lower() for t in all_titles]
-            match = process.extractOne(title.lower(), all_titles_lower, scorer=fuzz.ratio, score_cutoff=70)
+            match = process.extractOne(
+                title.lower(), all_titles_lower, scorer=fuzz.ratio, score_cutoff=70)
 
-            if match is None: 
+            if match is None:
                 st.warning(f"Book {i} not found: \"{title}\"")
             else:
                 matched_title, score, _ = match
                 if score >= 90:
-                    st.success(f"Book {i} matched: \"{matched_title}\" (score: {score:.1f})")
+                    st.success(
+                        f"Book {i} matched: \"{matched_title}\" (score: {score:.1f})")
                     liked_books[matched_title] = rating
                 else:
-                    st.warning(f"Book {i}: \"{matched_title}\" (similarity: {score:.1f}%)")
-                    confirm = st.checkbox(f"Did you mean {matched_title}?", key=f"confirm_movie_{matched_title}_{i}")
+                    st.warning(
+                        f"Book {i}: \"{matched_title}\" (similarity: {score:.1f}%)")
+                    confirm = st.checkbox(
+                        f"Did you mean {matched_title}?", key=f"confirm_movie_{matched_title}_{i}")
                     if confirm:
                         liked_books[matched_title] = rating
 
     st.divider()
-    query = st.text_area("Or describe what you like (optional)", placeholder="book description")
+    query = st.text_area("Or describe what you like (optional)",
+                         placeholder="book description")
 
     button_col1, button_col2 = st.columns(2)
 
-    show_liked_recommendations = button_col1.button("Get Recommendations from Books")
-    show_text_recommendations = button_col2.button("Get Recommendations from Description")
+    show_liked_recommendations = button_col1.button(
+        "Get Recommendations from Books")
+    show_text_recommendations = button_col2.button(
+        "Get Recommendations from Description")
 
     if show_liked_recommendations:
         if not liked_books:
@@ -83,7 +103,8 @@ if mode == "Books":
             sim_vector = None
             seen = set()
             for title, weight in liked_books.items():
-                matches = recommender.books[recommender.books['title'].str.lower() == title.lower()]
+                matches = recommender.books[recommender.books['title'].str.lower(
+                ) == title.lower()]
                 if matches.empty:
                     continue
                 idx = matches.index[0]
@@ -94,7 +115,8 @@ if mode == "Books":
             if sim_vector is None:
                 st.warning("Books not found.")
             else:
-                scores = cosine_similarity([sim_vector], recommender.embeddings).flatten()
+                scores = cosine_similarity(
+                    [sim_vector], recommender.embeddings).flatten()
                 top_indices = scores.argsort()[::-1]
                 st.subheader("Recommended Books")
                 count = 0
@@ -131,10 +153,12 @@ if mode == "Books":
 
 elif mode == "Movies":
     st.title("Movie Recommender")
-    st.write("Enter up to 3 movies you like and rate them, or use a description instead.")
+    st.write(
+        "Enter up to 3 movies you like and rate them, or use a description instead.")
 
     data_dir = kagglehub.dataset_download("tmdb/tmdb-movie-metadata")
-    movie_recommender = MovieRecommender(os.path.join(data_dir, "tmdb_5000_movies.csv"))
+    movie_recommender = MovieRecommender(
+        os.path.join(data_dir, "tmdb_5000_movies.csv"))
 
     liked_movies = {}
     st.subheader("Rate Movies You Liked")
@@ -143,34 +167,42 @@ elif mode == "Movies":
     for i in range(1, 4):
         col1, col2 = st.columns([3, 1])
         with col1:
-            title = st.text_input(f"Movie {i}", key=f"movie_title_{i}", placeholder="movie title")
+            title = st.text_input(
+                f"Movie {i}", key=f"movie_title_{i}", placeholder="movie title")
         with col2:
-            rating = st.slider("Rating", 1, 5, 5, key=f"movie_rating_{i}", label_visibility="collapsed") - 3
+            rating = st.slider(
+                "Rating", 1, 5, 5, key=f"movie_rating_{i}", label_visibility="collapsed") - 3
 
         if title:
             all_titles = movie_recommender.movies['title'].tolist()
             all_titles_lower = [t.lower() for t in all_titles]
-            match = process.extractOne(title.lower(), all_titles_lower, scorer=fuzz.ratio, score_cutoff=70)
+            match = process.extractOne(
+                title.lower(), all_titles_lower, scorer=fuzz.ratio, score_cutoff=70)
 
             if match is None:
                 st.warning(f"Movie {i} not found: \"{title}\"")
             else:
                 matched_title, score, _ = match
                 if score >= 90:
-                    st.success(f"Movie {i} matched: \"{matched_title}\" (score: {score:.1f})")
+                    st.success(
+                        f"Movie {i} matched: \"{matched_title}\" (score: {score:.1f})")
                     liked_movies[matched_title] = rating
                 else:
-                    st.warning(f"Movie {i}: \"{matched_title}\" (similarity: {score:.1f}%)")
-                    confirm = st.checkbox(f"Did you mean {matched_title}?", key=f"confirm_movie_{matched_title}_{i}")
+                    st.warning(
+                        f"Movie {i}: \"{matched_title}\" (similarity: {score:.1f}%)")
+                    confirm = st.checkbox(
+                        f"Did you mean {matched_title}?", key=f"confirm_movie_{matched_title}_{i}")
                     if confirm:
                         liked_movies[matched_title] = rating
 
     st.divider()
-    query = st.text_area("Or describe what you like (optional)", placeholder="movie description")
+    query = st.text_area("Or describe what you like (optional)",
+                         placeholder="movie description")
 
     col1, col2 = st.columns(2)
     show_liked_recommendations = col1.button("Get Recommendations from Movies")
-    show_text_recommendations = col2.button("Get Recommendations from Description")
+    show_text_recommendations = col2.button(
+        "Get Recommendations from Description")
 
     if show_liked_recommendations:
         if not liked_movies:
@@ -179,7 +211,8 @@ elif mode == "Movies":
             sim_vector = None
             seen = set()
             for title, weight in liked_movies.items():
-                matches = movie_recommender.movies[movie_recommender.movies['title'].str.lower() == title.lower()]
+                matches = movie_recommender.movies[movie_recommender.movies['title'].str.lower(
+                ) == title.lower()]
                 if matches.empty:
                     continue
                 idx = matches.index[0]
@@ -190,7 +223,8 @@ elif mode == "Movies":
             if sim_vector is None:
                 st.warning("Movies not found.")
             else:
-                scores = cosine_similarity([sim_vector], movie_recommender.embeddings).flatten()
+                scores = cosine_similarity(
+                    [sim_vector], movie_recommender.embeddings).flatten()
                 top_indices = scores.argsort()[::-1]
                 st.subheader("Recommended Movies")
                 count = 0
@@ -198,7 +232,8 @@ elif mode == "Movies":
                     movie = movie_recommender.movies.iloc[i]
                     if movie['title'].lower() in seen:
                         continue
-                    st.markdown(f"**{movie['title']}**  \n*{movie.get('release_date', 'Unknown')}*")
+                    st.markdown(
+                        f"**{movie['title']}**  \n*{movie.get('release_date', 'Unknown')}*")
                     st.markdown(movie.get('overview', ''))
                     count += 1
                     if count == 5:
@@ -211,5 +246,6 @@ elif mode == "Movies":
             results = movie_recommender.recommend_from_description(query)
             st.subheader("Recommended Movies")
             for movie in results:
-                st.markdown(f"**{movie['title']}**  \n*{movie.get('release_date', 'Unknown')}*")
+                st.markdown(
+                    f"**{movie['title']}**  \n*{movie.get('release_date', 'Unknown')}*")
                 st.markdown(movie.get('overview', ''))
