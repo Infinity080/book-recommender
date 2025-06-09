@@ -54,7 +54,13 @@ class BookRecommender:
 
     def _vectorize(self):
         device = 'cpu'
-        self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+        model_dir = "models/all-MiniLM-L6-v2"
+
+        if os.path.exists(model_dir):
+            self.model = SentenceTransformer(model_dir, device=device)
+        else:
+            self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+            self.model.save(model_dir)
 
         if self.cache and os.path.exists(self.embeddings_path):
             self.embeddings = np.load(self.embeddings_path)

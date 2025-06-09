@@ -4,8 +4,8 @@ import torch
 if isinstance(torch.classes, types.ModuleType):
     sys.modules["torch.classes"] = types.SimpleNamespace()
 import streamlit as st
-from BookRecommender import BookRecommender
-from MovieRecommender import MovieRecommender
+from src.BookRecommender import BookRecommender
+from src.MovieRecommender import MovieRecommender
 import kagglehub
 import os
 import pandas as pd
