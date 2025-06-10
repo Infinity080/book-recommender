@@ -1,31 +1,18 @@
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
 import ast
 import torch
 import os
 import numpy as np
-import streamlit as st
-
-@st.cache_resource(show_spinner=False)
-def load_model(model_dir, device):
-    if os.path.exists(model_dir):
-        model = SentenceTransformer(model_dir)
-    else:
-        model = SentenceTransformer("all-MiniLM-L6-v2")
-        model.save(model_dir)
-    return model.to(device)
 
 class MovieRecommender:
-    def __init__(self, movie_path, embeddings_path="movie_embeddings.npy", features_path="movie_features.npy", cache=True):
+    def __init__(self, movie_path, model, embeddings_path="movie_embeddings.npy", features_path="movie_features.npy", cache=True):
         self.movie_path = movie_path
         self.embeddings_path = embeddings_path
         self.features_path = features_path
         self.cache = cache
         self.movies = pd.read_csv(movie_path)
-
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+        self.model = model
 
         self._prepare_data()
 
@@ -70,14 +57,10 @@ class MovieRecommender:
                 np.save(self.embeddings_path, self.embeddings)
 
     def _vectorize(self):
-        device = 'cpu'
-        model_dir = "models/all-MiniLM-L6-v2"
-
         os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
         os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
         os.environ["SENTENCE_TRANSFORMERS_HOME"] = os.getcwd()
 
-        self.model = load_model(model_dir, device)
 
         if os.path.exists(self.embeddings_path):
             self.embeddings = np.load(self.embeddings_path)

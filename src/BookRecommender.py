@@ -2,27 +2,17 @@ import os
 import pandas as pd
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
-import streamlit as st
 import torch
 
-@st.cache_resource(show_spinner=False)
-def load_model(model_dir, device):
-    if os.path.exists(model_dir):
-        model = SentenceTransformer(model_dir)
-    else:
-        model = SentenceTransformer("all-MiniLM-L6-v2")
-        model.save(model_dir)
-    return model.to(device)
-
 class BookRecommender:
-    def __init__(self, books_path, book_tags_path, tags_path,
+    def __init__(self, books_path, model, book_tags_path, tags_path,
                  embeddings_path="book_embeddings.npy",
                  features_path="book_features.npy",
                  cache=True):
         self.embeddings_path = embeddings_path
         self.features_path = features_path
         self.cache = cache
+        self.model = model
 
         self.books = pd.read_csv(books_path)
         self.book_tags = pd.read_csv(book_tags_path)
@@ -62,14 +52,9 @@ class BookRecommender:
         self._vectorize()
 
     def _vectorize(self):
-        device = 'cpu'
-        model_dir = "models/all-MiniLM-L6-v2"
-
         os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
         os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
         os.environ["SENTENCE_TRANSFORMERS_HOME"] = os.getcwd()
-
-        self.model = load_model(model_dir, device)
 
         if self.cache and os.path.exists(self.embeddings_path):
             self.embeddings = np.load(self.embeddings_path)

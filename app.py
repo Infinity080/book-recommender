@@ -11,6 +11,20 @@ import os
 import pandas as pd
 from rapidfuzz import process, fuzz
 from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
+
+@st.cache_resource(show_spinner=False)
+def load_model():
+    os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+    os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+    os.environ["SENTENCE_TRANSFORMERS_HOME"] = os.getcwd()
+
+    model_dir = "models/all-MiniLM-L6-v2"
+    if os.path.exists(model_dir):
+        return SentenceTransformer(model_dir)
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+    model.save(model_dir)
+    return model
 
 st.set_page_config(page_title="Media Recommender", layout="centered")
 st.markdown("""
@@ -38,6 +52,7 @@ if col2.button("Movies"):
 
 mode = st.session_state.mode
 
+model = load_model()
 
 if mode == "Books":
     st.title("Book Recommender")
@@ -46,6 +61,7 @@ if mode == "Books":
     data_dir = kagglehub.dataset_download("zygmunt/goodbooks-10k")
 
     recommender = BookRecommender(
+        model = model,
         books_path=os.path.join(data_dir, 'books.csv'),
         book_tags_path=os.path.join(data_dir, 'book_tags.csv'),
         tags_path=os.path.join(data_dir, 'tags.csv')
@@ -165,8 +181,11 @@ elif mode == "Movies":
         "Get recommendations based on your previously watched movies or based on a description you provide.")
 
     data_dir = kagglehub.dataset_download("tmdb/tmdb-movie-metadata")
+
     movie_recommender = MovieRecommender(
-        os.path.join(data_dir, "tmdb_5000_movies.csv"))
+        os.path.join(data_dir, "tmdb_5000_movies.csv"),
+        model
+    )
 
     liked_movies = {}
     st.subheader("Rate Movies You Watched")
