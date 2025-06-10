@@ -1,6 +1,7 @@
 # Media Recommender
 
-**Try the app yourself here**: [https://media-recommenders.streamlit.app/](https://media-recommenders.streamlit.app/)
+**Try the app yourself here**: [https://media-recommenders.streamlit.app/](https://media-recommenders.streamlit.app/) \
+(Please keep in mind that if you're unlucky and open the app when it's not up, loading the model will take a while)
 
 ---
 
@@ -46,7 +47,7 @@ This project is a **Book/Movie Recommendation System** that gives suggestions ba
 
 ### GUI
 
-- Build with **Streamlit** for a lightweight interface
+- Built with **Streamlit** for a lightweight interface
 
 ---
 
