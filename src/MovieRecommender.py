@@ -5,7 +5,16 @@ import ast
 import torch
 import os
 import numpy as np
+import streamlit as st
 
+@st.cache_resource(show_spinner=False)
+def load_model(model_dir, device):
+    if os.path.exists(model_dir):
+        model = SentenceTransformer(model_dir)
+    else:
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+        model.save(model_dir)
+    return model.to(device)
 
 class MovieRecommender:
     def __init__(self, movie_path, embeddings_path="movie_embeddings.npy", features_path="movie_features.npy", cache=True):
@@ -68,13 +77,7 @@ class MovieRecommender:
         os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
         os.environ["SENTENCE_TRANSFORMERS_HOME"] = os.getcwd()
 
-        if os.path.exists(model_dir):
-            self.model = SentenceTransformer(model_dir, device=device)
-        else:
-            self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
-            self.model.save(model_dir)
-            
-        self.model = self.model.to(device)
+        self.model = load_model(model_dir, device)
 
         if os.path.exists(self.embeddings_path):
             self.embeddings = np.load(self.embeddings_path)
