@@ -4,3 +4,4 @@ streamlit
 kagglehub
 rapidfuzz
 sentence-transformers
+streamlit
