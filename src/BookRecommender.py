@@ -65,6 +65,8 @@ class BookRecommender:
         else:
             self.model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
             self.model.save(model_dir)
+            
+        self.model = self.model.to(device)
 
         if self.cache and os.path.exists(self.embeddings_path):
             self.embeddings = np.load(self.embeddings_path)
