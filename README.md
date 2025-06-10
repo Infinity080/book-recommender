@@ -96,6 +96,8 @@ streamlit run app.py
 
 ## License
 
+This project is licensed under the [MIT License](LICENSE).
+
 All data used is from publicly shared Kaggle datasets. SentenceTransformer models are under Apache 2.0 license via Hugging Face.
 
 ---
